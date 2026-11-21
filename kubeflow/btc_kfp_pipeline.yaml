@@ -1,0 +1,155 @@
+# PIPELINE DEFINITION
+# Name: btc-forecast-pipeline
+# Description: Ingest BTC-USD data, engineer features, train the 7-day forecaster.
+# Inputs:
+#    mape_threshold: float [Default: 15.0]
+#    start_date: str [Default: '2018-01-01']
+components:
+  comp-build-features:
+    executorLabel: exec-build-features
+    inputDefinitions:
+      artifacts:
+        raw_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+    outputDefinitions:
+      artifacts:
+        features:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-ingest-data:
+    executorLabel: exec-ingest-data
+    inputDefinitions:
+      parameters:
+        start_date:
+          defaultValue: '2018-01-01'
+          isOptional: true
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        raw_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-train-model:
+    executorLabel: exec-train-model
+    inputDefinitions:
+      artifacts:
+        features:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+      parameters:
+        mape_threshold:
+          defaultValue: 15.0
+          isOptional: true
+          parameterType: NUMBER_DOUBLE
+    outputDefinitions:
+      artifacts:
+        model:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+deploymentSpec:
+  executors:
+    exec-build-features:
+      container:
+        args:
+        - --raw
+        - '{{$.inputs.artifacts[''raw_data''].path}}'
+        - --out
+        - '{{$.outputs.artifacts[''features''].path}}'
+        command:
+        - python
+        - -m
+        - src.features
+        image: docker.io/engrhina/btc-forecast:latest
+    exec-ingest-data:
+      container:
+        args:
+        - --out
+        - '{{$.outputs.artifacts[''raw_data''].path}}'
+        - --start
+        - '{{$.inputs.parameters[''start_date'']}}'
+        command:
+        - python
+        - -m
+        - src.etl_fetch
+        image: docker.io/engrhina/btc-forecast:latest
+    exec-train-model:
+      container:
+        args:
+        - --features
+        - '{{$.inputs.artifacts[''features''].path}}'
+        - --out-dir
+        - '{{$.outputs.artifacts[''model''].path}}'
+        - --mape-threshold
+        - '{{$.inputs.parameters[''mape_threshold'']}}'
+        command:
+        - python
+        - -m
+        - src.train_forecast
+        image: docker.io/engrhina/btc-forecast:latest
+pipelineInfo:
+  description: Ingest BTC-USD data, engineer features, train the 7-day forecaster.
+  name: btc-forecast-pipeline
+root:
+  dag:
+    tasks:
+      build-features:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-build-features
+        dependentTasks:
+        - ingest-data
+        inputs:
+          artifacts:
+            raw_data:
+              taskOutputArtifact:
+                outputArtifactKey: raw_data
+                producerTask: ingest-data
+        taskInfo:
+          name: build-features
+      ingest-data:
+        cachingOptions: {}
+        componentRef:
+          name: comp-ingest-data
+        inputs:
+          parameters:
+            start_date:
+              componentInputParameter: start_date
+        taskInfo:
+          name: ingest-data
+      train-model:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-train-model
+        dependentTasks:
+        - build-features
+        inputs:
+          artifacts:
+            features:
+              taskOutputArtifact:
+                outputArtifactKey: features
+                producerTask: build-features
+          parameters:
+            mape_threshold:
+              componentInputParameter: mape_threshold
+        taskInfo:
+          name: train-model
+  inputDefinitions:
+    parameters:
+      mape_threshold:
+        defaultValue: 15.0
+        isOptional: true
+        parameterType: NUMBER_DOUBLE
+      start_date:
+        defaultValue: '2018-01-01'
+        isOptional: true
+        parameterType: STRING
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.18.0

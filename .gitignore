@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+venv/
+.venv/
+.env
+*.docx
+data/raw/*.csv
+data/processed/*.csv
+models/*
+!models/.gitkeep
+logs/
+~*.tmp
+*.tmp

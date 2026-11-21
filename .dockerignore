@@ -1,0 +1,15 @@
+.git
+.github
+__pycache__
+*.pyc
+.pytest_cache
+venv
+.venv
+data
+models
+tests
+k8s
+dags
+kubeflow
+docs
+*.md
